@@ -1,0 +1,671 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8"/>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+  <title>Cotizador – Paseo de las Laderas (F01)</title>
+
+  <!-- Tailwind (CDN) -->
+  <script src="https://cdn.tailwindcss.com"></script>
+
+  <!-- jsPDF + AutoTable -->
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf-autotable/3.8.2/jspdf.plugin.autotable.min.js"></script>
+
+  <style>
+    body{ font-family: "Inter",system-ui,-apple-system,Segoe UI,Roboto,"Helvetica Neue",Arial,"Noto Sans","Apple Color Emoji","Segoe UI Emoji","Segoe UI Symbol"; }
+    /* Botón nativo del input file con estilo */
+    input[type="file"]::file-selector-button{
+      padding:.5rem .75rem; border-radius:.375rem; margin-right:.75rem;
+      background:#4b5563; color:white; font-weight:600; cursor:pointer;
+    }
+  </style>
+</head>
+<body class="bg-gray-100 text-gray-800">
+  <div class="container mx-auto p-4 md:p-8">
+
+    <!-- Header -->
+    <header class="mb-6 pb-4 border-b border-gray-200 flex flex-col md:flex-row justify-between items-start md:items-center gap-4">
+      <div>
+        <h1 class="text-3xl font-bold">Cotizador – Paseo de las Laderas</h1>
+        <p class="text-xs text-gray-500 mt-1">Esquema <span class="font-semibold">F01</span>: 20% enganche · 60% financiado · 12/24m 0% · 34/48/56m (5%/8%/12%)</p>
+      </div>
+      <div class="flex items-center gap-3">
+        <span id="lote-count" class="text-sm text-gray-600"></span>
+        <button id="btn-reinit" class="px-4 py-2 rounded-md font-semibold text-white shadow-sm bg-blue-600 hover:bg-blue-700">Reiniciar 100 lotes @ $350,000</button>
+        <button id="btn-pdf" class="px-4 py-2 rounded-md font-semibold text-white shadow-sm bg-emerald-600 hover:bg-emerald-700 disabled:opacity-50 disabled:cursor-not-allowed" disabled>Exportar PDF</button>
+      </div>
+    </header>
+
+    <div class="grid grid-cols-1 lg:grid-cols-3 gap-6">
+
+      <!-- Columna 1 -->
+      <div class="lg:col-span-1 space-y-6">
+
+        <!-- Datos -->
+        <section class="bg-white rounded-lg shadow p-5">
+          <h2 class="text-xl font-semibold mb-4">Datos de la Cotización</h2>
+          <div class="space-y-3">
+            <div>
+              <label class="block text-sm font-medium mb-1" for="input-logo">Cargar Logotipo (opcional)</label>
+              <input id="input-logo" type="file" accept="image/png,image/jpeg" class="w-full border border-gray-300 rounded-md p-2">
+              <img id="logo-preview" class="hidden w-24 h-auto mt-2 rounded border p-1" alt="Logo Preview">
+            </div>
+            <div>
+              <label class="block text-sm font-medium mb-1" for="input-asesor">Asesor</label>
+              <input id="input-asesor" class="w-full border border-gray-300 rounded-md p-2" placeholder="Nombre del asesor">
+            </div>
+            <div>
+              <label class="block text-sm font-medium mb-1" for="input-cliente">Cliente</label>
+              <input id="input-cliente" class="w-full border border-gray-300 rounded-md p-2" placeholder="Nombre del cliente">
+            </div>
+            <div>
+              <label class="block text-sm font-medium mb-1" for="info-fecha">Fecha</label>
+              <input id="info-fecha" class="w-full border border-gray-200 rounded-md p-2 bg-gray-50" disabled>
+            </div>
+          </div>
+        </section>
+
+        <!-- Lote -->
+        <section class="bg-white rounded-lg shadow p-5">
+          <h2 class="text-xl font-semibold mb-4">1. Seleccionar Lote</h2>
+          <label for="select-lote" class="block text-sm font-medium mb-1">Lotes (1–100) a $350,000</label>
+          <select id="select-lote" class="w-full border border-gray-300 rounded-md p-2">
+            <option value="">Seleccione un lote…</option>
+          </select>
+
+          <div id="lote-info" class="mt-4 p-3 bg-gray-50 rounded-md border border-gray-200 hidden">
+            <h3 class="font-semibold text-lg">Lote <span id="info-nombre"></span></h3>
+            <div class="grid grid-cols-2 gap-2 text-sm mt-2">
+              <span>ID:</span><span id="info-id" class="font-medium"></span>
+              <span>M²:</span><span id="info-m2" class="font-medium"></span>
+              <span>Precio:</span><span id="info-precio" class="font-medium"></span>
+              <span>Estatus:</span><span id="info-estatus" class="font-medium"></span>
+            </div>
+          </div>
+        </section>
+
+        <!-- Esquema -->
+        <section class="bg-white rounded-lg shadow p-5">
+          <h2 class="text-xl font-semibold mb-4">2. Esquema de Pago (F01)</h2>
+          <div class="grid grid-cols-3 gap-3">
+            <div>
+              <label class="block text-sm font-medium mb-1" for="input-enganche-pct">Enganche (%)</label>
+              <input id="input-enganche-pct" type="number" class="w-full border border-gray-300 rounded-md p-2" value="20" min="10" max="100">
+            </div>
+            <div>
+              <label class="block text-sm font-medium mb-1" for="input-financiado-pct">Financiado (%)</label>
+              <input id="input-financiado-pct" type="number" class="w-full border border-gray-300 rounded-md p-2" value="60" min="0" max="90">
+            </div>
+            <div>
+              <label class="block text-sm font-medium mb-1" for="input-contraentrega-pct">Contraentrega (%)</label>
+              <input id="input-contraentrega-pct" type="number" class="w-full border border-gray-300 rounded-md p-2" value="20" min="0" max="90">
+            </div>
+          </div>
+        </section>
+
+        <!-- Plazo -->
+        <section class="bg-white rounded-lg shadow p-5">
+          <h2 class="text-xl font-semibold mb-4">3. Plazo y Tasa</h2>
+          <label class="block text-sm font-medium mb-1" for="select-plazo">Plazo (meses)</label>
+          <select id="select-plazo" class="w-full border border-gray-300 rounded-md p-2 mb-3">
+            <option value="12">12 Meses (0% interés)</option>
+            <option value="24">24 Meses (0% interés)</option>
+            <option value="34">34 Meses (5% anual)</option>
+            <option value="48">48 Meses (8% anual)</option>
+            <option value="56">56 Meses (12% anual)</option>
+            <option value="custom">Personalizado</option>
+          </select>
+
+          <div id="div-custom-plazo" class="hidden grid grid-cols-2 gap-3">
+            <div>
+              <label class="block text-sm font-medium mb-1" for="input-plazo-custom">Meses</label>
+              <input id="input-plazo-custom" type="number" class="w-full border border-gray-300 rounded-md p-2" value="56" min="1">
+            </div>
+            <div>
+              <label class="block text-sm font-medium mb-1" for="input-tasa-custom">Tasa Anual (%)</label>
+              <input id="input-tasa-custom" type="number" class="w-full border border-gray-300 rounded-md p-2" value="12" min="0">
+            </div>
+          </div>
+        </section>
+
+        <!-- Política -->
+        <section class="bg-white rounded-lg shadow p-5">
+          <h2 class="text-xl font-semibold mb-4">4. Política Comercial</h2>
+          <div class="grid grid-cols-2 gap-4">
+            <div>
+              <label class="block text-sm font-medium mb-1" for="input-apartado">Apartado (MXN)</label>
+              <input id="input-apartado" type="number" class="w-full border border-gray-300 rounded-md p-2" value="5000">
+            </div>
+            <div>
+              <label class="block text-sm font-medium mb-1" for="input-descuento-valor">Descuento</label>
+              <div class="flex">
+                <select id="select-descuento-tipo" class="w-1/3 border border-gray-300 rounded-l-md p-2">
+                  <option value="%">%</option>
+                  <option value="$">$</option>
+                </select>
+                <input id="input-descuento-valor" type="number" class="w-2/3 border border-gray-300 rounded-r-md p-2" value="0" min="0">
+              </div>
+            </div>
+            <div>
+              <label class="block text-sm font-medium mb-1" for="input-diferir-enganche">Diferir Enganche (meses)</label>
+              <input id="input-diferir-enganche" type="number" class="w-full border border-gray-300 rounded-md p-2" value="0" min="0">
+              <small class="text-xs text-gray-500">0 = 1 solo pago</small>
+            </div>
+            <div>
+              <label class="block text-sm font-medium mb-1" for="input-inicio-fecha">Inicio Mensualidades</label>
+              <input id="input-inicio-fecha" type="date" class="w-full border border-gray-300 rounded-md p-2">
+            </div>
+          </div>
+        </section>
+
+      </div>
+
+      <!-- Columna 2 -->
+      <div class="lg:col-span-2 space-y-6">
+
+        <!-- Resumen -->
+        <section class="bg-white rounded-lg shadow p-5">
+          <h2 class="text-xl font-semibold mb-4">Resumen de Cotización</h2>
+          <div class="grid grid-cols-2 md:grid-cols-4 gap-4">
+            <div class="bg-white p-4 rounded-lg shadow">
+              <div class="text-sm text-gray-500">Precio Base (c/desc)</div>
+              <div id="res-precio-final" class="text-2xl font-bold">-</div>
+            </div>
+            <div class="bg-white p-4 rounded-lg shadow">
+              <div class="text-sm text-gray-500">Enganche Total</div>
+              <div id="res-enganche-total" class="text-2xl font-bold">-</div>
+            </div>
+            <div class="bg-white p-4 rounded-lg shadow">
+              <div class="text-sm text-gray-500">Financiado (Base)</div>
+              <div id="res-financiado-base" class="text-2xl font-bold">-</div>
+            </div>
+            <div class="bg-white p-4 rounded-lg shadow">
+              <div class="text-sm text-gray-500">Contraentrega</div>
+              <div id="res-contraentrega" class="text-2xl font-bold">-</div>
+            </div>
+            <div class="bg-white p-4 rounded-lg shadow">
+              <div class="text-sm text-gray-500">Apartado</div>
+              <div id="res-apartado" class="text-2xl font-bold">-</div>
+            </div>
+            <div class="bg-white p-4 rounded-lg shadow">
+              <div class="text-sm text-gray-500">Mensualidad</div>
+              <div id="res-mensualidad" class="text-2xl font-bold">-</div>
+            </div>
+            <div class="bg-white p-4 rounded-lg shadow">
+              <div class="text-sm text-gray-500">Plazo / Tasa</div>
+              <div id="res-plazo-tasa" class="text-2xl font-bold">-</div>
+            </div>
+            <div class="bg-blue-50 p-4 rounded-lg shadow">
+              <div class="text-sm text-gray-500">Costo Financiero</div>
+              <div id="res-costo-financiero" class="text-2xl font-bold text-blue-700">-</div>
+            </div>
+          </div>
+        </section>
+
+        <!-- Calendario -->
+        <section class="bg-white rounded-lg shadow p-5">
+          <h2 class="text-xl font-semibold mb-4">Calendario de Pagos</h2>
+          <div class="overflow-x-auto max-h-96">
+            <table class="min-w-full divide-y divide-gray-200">
+              <thead class="bg-gray-50 sticky top-0">
+                <tr>
+                  <th class="px-4 py-2 text-left text-xs font-semibold text-gray-600 uppercase">Fecha</th>
+                  <th class="px-4 py-2 text-right text-xs font-semibold text-gray-600 uppercase">Apartado</th>
+                  <th class="px-4 py-2 text-right text-xs font-semibold text-gray-600 uppercase">Enganche</th>
+                  <th class="px-4 py-2 text-right text-xs font-semibold text-gray-600 uppercase">Mensualidad</th>
+                  <th class="px-4 py-2 text-right text-xs font-semibold text-gray-600 uppercase">Contraentrega</th>
+                  <th class="px-4 py-2 text-right text-xs font-semibold text-gray-600 uppercase">Subtotal</th>
+                  <th class="px-4 py-2 text-right text-xs font-semibold text-gray-600 uppercase">Saldo</th>
+                </tr>
+              </thead>
+              <tbody id="tbody-calendario" class="bg-white divide-y divide-gray-100">
+                <tr><td colspan="7" class="p-4 text-center text-gray-500">Seleccione un lote y configure el esquema.</td></tr>
+              </tbody>
+              <tfoot class="bg-gray-100 font-bold sticky bottom-0">
+                <tr id="tfoot-calendario"></tr>
+              </tfoot>
+            </table>
+          </div>
+        </section>
+
+      </div>
+    </div>
+  </div>
+
+  <script>
+    document.addEventListener('DOMContentLoaded', () => {
+      const { jsPDF } = window.jspdf;
+
+      // ---- Estado ----
+      let inventario = [];
+      let loteSeleccionado = null;
+      let calendarioPagos = [];
+      let globalTotals = {};
+      let logoImgData = null;
+
+      // ---- Referencias ----
+      const selectLote = document.getElementById('select-lote');
+      const loteInfo = document.getElementById('lote-info');
+      const infoId = document.getElementById('info-id');
+      const infoNombre = document.getElementById('info-nombre');
+      const infoM2 = document.getElementById('info-m2');
+      const infoPrecio = document.getElementById('info-precio');
+      const infoEstatus = document.getElementById('info-estatus');
+      const loteCount = document.getElementById('lote-count');
+      const btnReinit = document.getElementById('btn-reinit');
+
+      const inputLogo = document.getElementById('input-logo');
+      const logoPreview = document.getElementById('logo-preview');
+      const inputAsesor = document.getElementById('input-asesor');
+      const inputCliente = document.getElementById('input-cliente');
+      const infoFecha = document.getElementById('info-fecha');
+
+      const inputEnganchePct = document.getElementById('input-enganche-pct');
+      const inputFinanciadoPct = document.getElementById('input-financiado-pct');
+      const inputContraentregaPct = document.getElementById('input-contraentrega-pct');
+
+      const selectPlazo = document.getElementById('select-plazo');
+      const divCustomPlazo = document.getElementById('div-custom-plazo');
+      const inputPlazoCustom = document.getElementById('input-plazo-custom');
+      const inputTasaCustom = document.getElementById('input-tasa-custom');
+
+      const inputApartado = document.getElementById('input-apartado');
+      const selectDescuentoTipo = document.getElementById('select-descuento-tipo');
+      const inputDescuentoValor = document.getElementById('input-descuento-valor');
+      const inputDiferirEnganche = document.getElementById('input-diferir-enganche');
+      const inputInicioFecha = document.getElementById('input-inicio-fecha');
+
+      const resPrecioFinal = document.getElementById('res-precio-final');
+      const resEngancheTotal = document.getElementById('res-enganche-total');
+      const resFinanciadoBase = document.getElementById('res-financiado-base');
+      const resContraentrega = document.getElementById('res-contraentrega');
+      const resApartado = document.getElementById('res-apartado');
+      const resMensualidad = document.getElementById('res-mensualidad');
+      const resPlazoTasa = document.getElementById('res-plazo-tasa');
+      const resCostoFinanciero = document.getElementById('res-costo-financiero');
+
+      const tbodyCalendario = document.getElementById('tbody-calendario');
+      const tfootCalendario = document.getElementById('tfoot-calendario');
+      const btnPdf = document.getElementById('btn-pdf');
+
+      // ---- Tasas F01 ----
+      const TASAS = {
+        '12': 0.00,   // 0% anual
+        '24': 0.00,   // 0% anual
+        '34': 0.05,   // 5% anual
+        '48': 0.08,   // 8% anual
+        '56': 0.12    // 12% anual
+      };
+
+      // ---- Utilidades ----
+      function parseNumber(str){ if(typeof str==='number') return str; return parseFloat(String(str).replace(/[$,MXN\s]/g,''))||0; }
+      function formatCurrency(num){ return new Intl.NumberFormat('es-MX',{style:'currency',currency:'MXN',maximumFractionDigits:0,minimumFractionDigits:0}).format(num); }
+      const formatDate = d => d? d.toLocaleDateString('es-MX',{day:'2-digit',month:'2-digit',year:'numeric'}):'';
+      const parseDateMX = str => { const p=str.split('/'); return new Date(p[2], p[1]-1, p[0]); };
+      function PMT(rate,nper,pv){ if(nper===0) return 0; if(rate===0) return pv/nper; const r=rate/12; return (pv*r)/(1-Math.pow(1+r,-nper)); }
+
+      // ---- Inventario ----
+      function initializeLotes(){
+        inventario = [];
+        const basePrice = 350000;
+        for(let i=1;i<=100;i++){
+          inventario.push({ id:i, nombre:`Lote ${i}`, m2:127, precio:basePrice, estatus:'Disponible' });
+        }
+        updateLoteSelector();
+        updateLoteCount();
+        resetCalculations();
+      }
+
+      function updateLoteSelector(){
+        selectLote.innerHTML = '<option value="">Seleccione un lote…</option>';
+        for(const lote of inventario){
+          const opt=document.createElement('option');
+          opt.value=String(lote.id);
+          opt.textContent=`${lote.nombre} — ${formatCurrency(lote.precio)}`;
+          selectLote.appendChild(opt);
+        }
+      }
+
+      function updateLoteCount(){
+        loteCount.textContent = `Inventario: ${inventario.length} lotes @ ${formatCurrency(inventario[0]?.precio||350000)}`;
+      }
+
+      function handleLoteSelection(){
+        const loteId = selectLote.value;
+        loteSeleccionado = inventario.find(l => String(l.id)===String(loteId)) || null;
+        if(loteSeleccionado){
+          infoId.textContent = loteSeleccionado.id;
+          infoNombre.textContent = loteSeleccionado.nombre;
+          infoM2.textContent = `${loteSeleccionado.m2} m²`;
+          infoPrecio.textContent = formatCurrency(loteSeleccionado.precio);
+          infoEstatus.textContent = loteSeleccionado.estatus;
+          loteInfo.classList.remove('hidden');
+          updateCalculations();
+        }else{
+          loteInfo.classList.add('hidden');
+          resetCalculations();
+        }
+        updateButtons();
+      }
+
+      // ---- Porcentajes ----
+      function normalizePercentages(source){
+        let e=parseNumber(inputEnganchePct.value);
+        let f=parseNumber(inputFinanciadoPct.value);
+        let c=parseNumber(inputContraentregaPct.value);
+
+        if(source==='e' || source==='c'){ f = 100 - e - c; }
+        else { c = 100 - e - f; }
+
+        e=Math.max(10, Math.min(100, e));
+        c=Math.max(0, Math.min(100 - e, c));
+        f=Math.max(0, 100 - e - c);
+
+        inputEnganchePct.value = e.toFixed(1);
+        inputFinanciadoPct.value = f.toFixed(1);
+        inputContraentregaPct.value = c.toFixed(1);
+
+        updateCalculations();
+      }
+
+      // ---- Cálculo principal ----
+      function getFinanceParams(){
+        const apartado = parseNumber(inputApartado.value);
+        const descuentoTipo = selectDescuentoTipo.value;
+        const descuentoValor = parseNumber(inputDescuentoValor.value);
+
+        const pctE = parseNumber(inputEnganchePct.value)/100;
+        const pctF = parseNumber(inputFinanciadoPct.value)/100;
+        const pctC = parseNumber(inputContraentregaPct.value)/100;
+
+        const diferirEnganche = parseInt(inputDiferirEnganche.value)||0;
+        const inicioFecha = inputInicioFecha.value;
+
+        const plazoKey = selectPlazo.value;
+        let nper, tasaAnual, plazoLabel;
+        if(plazoKey==='custom'){
+          nper = parseInt(inputPlazoCustom.value)||1;
+          tasaAnual = (parseNumber(inputTasaCustom.value)||0)/100;
+        }else{
+          nper = parseInt(plazoKey);
+          tasaAnual = TASAS[plazoKey];
+        }
+        plazoLabel = `${nper}m @ ${(tasaAnual*100).toFixed(2)}%`;
+
+        return { apartado, descuentoTipo, descuentoValor, pctE, pctF, pctC, diferirEnganche, inicioFecha, nper, tasaAnual, plazoLabel };
+      }
+
+      function updateCalculations(){
+        if(!loteSeleccionado) return;
+        const params = getFinanceParams();
+        const precioLista = loteSeleccionado.precio;
+
+        const descuento = (params.descuentoTipo==='%')
+          ? precioLista*(params.descuentoValor/100)
+          : params.descuentoValor;
+
+        const precioBase = Math.max(0, precioLista - descuento);
+
+        const montoEnganche = precioBase * params.pctE;
+        const montoFinanciado = precioBase * params.pctF;
+        const montoContraentrega = precioBase * params.pctC;
+
+        const engancheRestante = Math.max(0, montoEnganche - params.apartado);
+        const pagoEngancheDiferido = (params.diferirEnganche>0) ? (engancheRestante/params.diferirEnganche) : engancheRestante;
+
+        const mensualidad = PMT(params.tasaAnual, params.nper, montoFinanciado);
+
+        // Calendario
+        calendarioPagos = [];
+        const calendarMap = {};
+        const addToCalendar = (date, tipo, monto) => {
+          if(!date || !isFinite(monto) || monto===0) return;
+          const key = date.toISOString().slice(0,10);
+          if(!calendarMap[key]){
+            calendarMap[key] = { date, apartado:0, enganche:0, mensualidad:0, contraentrega:0, subtotal:0 };
+          }
+          calendarMap[key][tipo] += monto;
+          calendarMap[key].subtotal += monto;
+        };
+
+        const fechaCot = parseDateMX(infoFecha.value);
+        const fechaMens = new Date(params.inicioFecha+'T12:00:00');
+
+        // Apartado en fecha de cotización
+        addToCalendar(fechaCot,'apartado', params.apartado);
+
+        // Enganches mensuales desde 1º del mes siguiente
+        const inicioEng = new Date(fechaCot.getFullYear(), fechaCot.getMonth()+1, 1);
+        const nEng = params.diferirEnganche || 1;
+        for(let i=0;i<nEng;i++){
+          const d = new Date(inicioEng.getFullYear(), inicioEng.getMonth()+i, 1);
+          addToCalendar(d,'enganche', pagoEngancheDiferido);
+        }
+
+        // Mensualidades
+        for(let i=0;i<params.nper;i++){
+          const d = new Date(fechaMens.getFullYear(), fechaMens.getMonth()+i, fechaMens.getDate());
+          addToCalendar(d,'mensualidad', mensualidad);
+        }
+
+        // Contraentrega un mes después del último movimiento
+        let maxDate = new Date(0);
+        Object.values(calendarMap).forEach(p => { if(p.date>maxDate) maxDate=p.date; });
+        const fechaCE = new Date(maxDate.getFullYear(), maxDate.getMonth()+1, maxDate.getDate());
+        addToCalendar(fechaCE,'contraentrega', montoContraentrega);
+
+        // Ordenar
+        calendarioPagos = Object.values(calendarMap).sort((a,b)=>a.date-b.date);
+
+        // Totales + saldo
+        let totalPagado=0, tApart=0, tEng=0, tMen=0, tCE=0;
+        let saldo=precioBase;
+        for(const p of calendarioPagos){
+          totalPagado += p.subtotal;
+          tApart += p.apartado;
+          tEng += p.enganche;
+          tMen += p.mensualidad;
+          tCE += p.contraentrega;
+          saldo -= p.subtotal;
+          p.saldo = (saldo < 0.01) ? 0 : saldo;
+        }
+        globalTotals = { apartado:tApart, enganche:tEng, mensualidad:tMen, contraentrega:tCE, pagado:totalPagado };
+        const costoFinanciero = totalPagado - precioBase;
+
+        // Resumen UI
+        resPrecioFinal.textContent = formatCurrency(precioBase);
+        resEngancheTotal.textContent = formatCurrency(montoEnganche);
+        resFinanciadoBase.textContent = formatCurrency(montoFinanciado);
+        resContraentrega.textContent = formatCurrency(montoContraentrega);
+        resApartado.textContent = formatCurrency(params.apartado);
+        resMensualidad.textContent = formatCurrency(mensualidad);
+        resPlazoTasa.textContent = params.plazoLabel;
+        resCostoFinanciero.textContent = formatCurrency(costoFinanciero);
+
+        // Tabla
+        renderCalendario();
+        updateButtons();
+      }
+
+      function renderCalendario(){
+        tbodyCalendario.innerHTML = '';
+        if(calendarioPagos.length===0){
+          tbodyCalendario.innerHTML = '<tr><td colspan="7" class="p-4 text-center text-gray-500">No hay pagos para este esquema.</td></tr>';
+          tfootCalendario.innerHTML = '';
+          return;
+        }
+        for(const p of calendarioPagos){
+          const tr = document.createElement('tr');
+          tr.innerHTML = `
+            <td class="px-4 py-2 text-sm">${formatDate(p.date)}</td>
+            <td class="px-4 py-2 text-sm text-right">${formatCurrency(p.apartado)}</td>
+            <td class="px-4 py-2 text-sm text-right">${formatCurrency(p.enganche)}</td>
+            <td class="px-4 py-2 text-sm text-right">${formatCurrency(p.mensualidad)}</td>
+            <td class="px-4 py-2 text-sm text-right">${formatCurrency(p.contraentrega)}</td>
+            <td class="px-4 py-2 text-sm text-right font-semibold">${formatCurrency(p.subtotal)}</td>
+            <td class="px-4 py-2 text-sm text-right font-bold text-gray-700">${formatCurrency(p.saldo)}</td>
+          `;
+          tbodyCalendario.appendChild(tr);
+        }
+        tfootCalendario.innerHTML = `
+          <tr>
+            <td class="px-4 py-2 text-left text-sm font-bold">Total</td>
+            <td class="px-4 py-2 text-right text-sm font-bold">${formatCurrency(globalTotals.apartado||0)}</td>
+            <td class="px-4 py-2 text-right text-sm font-bold">${formatCurrency(globalTotals.enganche||0)}</td>
+            <td class="px-4 py-2 text-right text-sm font-bold">${formatCurrency(globalTotals.mensualidad||0)}</td>
+            <td class="px-4 py-2 text-right text-sm font-bold">${formatCurrency(globalTotals.contraentrega||0)}</td>
+            <td class="px-4 py-2 text-right text-sm font-bold">${formatCurrency(globalTotals.pagado||0)}</td>
+            <td class="px-4 py-2 text-right text-sm font-bold">-</td>
+          </tr>
+        `;
+      }
+
+      function updateButtons(){ btnPdf.disabled = !loteSeleccionado || calendarioPagos.length===0; }
+
+      function resetCalculations(){
+        calendarioPagos=[]; globalTotals={};
+        [resPrecioFinal,resEngancheTotal,resFinanciadoBase,resContraentrega,resApartado,resMensualidad,resPlazoTasa,resCostoFinanciero].forEach(el=>el.textContent='-');
+        tbodyCalendario.innerHTML = '<tr><td colspan="7" class="p-4 text-center text-gray-500">Seleccione un lote y configure el esquema.</td></tr>';
+        tfootCalendario.innerHTML = '';
+        updateButtons();
+      }
+
+      function exportPDF(){
+        if(!loteSeleccionado || calendarioPagos.length===0) return;
+
+        const doc = new jsPDF();
+        const params = getFinanceParams();
+
+        const asesor = inputAsesor.value || 'N/A';
+        const cliente = inputCliente.value || 'N/A';
+        const fecha = infoFecha.value;
+
+        let yPos;
+        // Encabezado con logo (si hay)
+        if(logoImgData){
+          try{ doc.addImage(logoImgData,'PNG',14,15,25,25); }catch(e){ console.error(e); }
+          doc.setFontSize(18); doc.setFont('helvetica','bold'); doc.text('Cotización – Paseo de las Laderas',105,30,{align:'center'}); yPos=50;
+        }else{
+          doc.setFontSize(18); doc.setFont('helvetica','bold'); doc.text('Cotización – Paseo de las Laderas',105,22,{align:'center'}); yPos=35;
+        }
+
+        doc.setFontSize(10); doc.setFont('helvetica','normal');
+        let yL=yPos; doc.text('Fecha:',14,yL); doc.text(fecha,45,yL); yL+=6; doc.text('Cliente:',14,yL); doc.text(cliente,45,yL); yL+=6; doc.text('Asesor:',14,yL); doc.text(asesor,45,yL);
+        let yR=yPos; const apartadoVal=resApartado.textContent; const costoTotalVal=resPrecioFinal.textContent; const financiadoVal=resFinanciadoBase.textContent;
+        doc.setFont('helvetica','bold'); doc.text('Apartado:',140,yR); doc.text(apartadoVal,200,yR,{align:'right'}); yR+=6; doc.text('Costo Total Lote:',140,yR); doc.text(costoTotalVal,200,yR,{align:'right'}); yR+=6; doc.text('Monto a Financiar:',140,yR); doc.text(financiadoVal,200,yR,{align:'right'});
+        yPos=Math.max(yL,yR)+12;
+
+        // Datos del lote
+        doc.setFontSize(12); doc.setFont('helvetica','bold'); doc.text('Datos del Lote',14,yPos); yPos+=5;
+        doc.autoTable({
+          startY:yPos,
+          head:[['Lote','Área M²','Precio M²','Valor Lote (Precio Lista)']],
+          body:[[loteSeleccionado.nombre, `${loteSeleccionado.m2} m²`, formatCurrency(loteSeleccionado.precio/loteSeleccionado.m2), formatCurrency(loteSeleccionado.precio)]],
+          theme:'grid',
+          styles:{lineColor:[0,0,0],lineWidth:0.1},
+          headStyles:{fillColor:[85,107,47],textColor:[255,255,255],fontStyle:'bold'}
+        });
+        yPos = doc.lastAutoTable.finalY + 10;
+
+        // Resumen financiamiento
+        doc.text('Resumen de Financiamiento',14,yPos); yPos+=5;
+        const mensualidadVal=resMensualidad.textContent; const financiamientoVal=`${params.nper} Meses`; const interesVal=`${(params.tasaAnual*100).toFixed(1)}% Anual`;
+        doc.autoTable({
+          startY:yPos,
+          head:[['Mensualidad (Aprox)','Financiamiento','Interés Anual']],
+          body:[[mensualidadVal,financiamientoVal,interesVal]],
+          theme:'grid',
+          styles:{lineColor:[0,0,0],lineWidth:0.1},
+          headStyles:{fillColor:[85,107,47],textColor:[255,255,255],fontStyle:'bold'}
+        });
+        yPos = doc.lastAutoTable.finalY + 10;
+
+        // Desglose
+        doc.text('Desglose del Esquema',14,yPos); yPos+=5;
+        const descuentoVal = (params.descuentoTipo==='%') ? formatCurrency(loteSeleccionado.precio*(params.descuentoValor/100)) : formatCurrency(params.descuentoValor);
+        const bodyData = [
+          ['Precio de Lista', formatCurrency(loteSeleccionado.precio)],
+          ['Descuento Aplicado', `${descuentoVal} (${params.descuentoValor}${params.descuentoTipo})`],
+          ['Precio Base (c/desc)', resPrecioFinal.textContent],
+          ['1. Apartado', resApartado.textContent],
+          ['2. Enganche', `${resEngancheTotal.textContent} (${(params.pctE*100).toFixed(1)}%)`],
+          ['3. Monto Financiado', `${resFinanciadoBase.textContent} (${(params.pctF*100).toFixed(1)}%)`],
+          ['4. Contraentrega', `${resContraentrega.textContent} (${(params.pctC*100).toFixed(1)}%)`],
+          ['Costo Financiero Total', resCostoFinanciero.textContent],
+          ['Total Pagado (Simulación)', formatCurrency(globalTotals.pagado||0)]
+        ];
+        doc.autoTable({
+          startY:yPos,
+          head:[['Concepto','Monto']],
+          body:bodyData,
+          theme:'grid',
+          styles:{lineColor:[0,0,0],lineWidth:0.1},
+          headStyles:{fillColor:[85,107,47],textColor:[255,255,255],fontStyle:'bold'},
+          didParseCell:(data)=>{ const bold=['Precio Base (c/desc)','Total Pagado (Simulación)','Costo Financiero Total']; if(data.row.section==='body' && bold.includes(data.cell.text[0])) data.cell.styles.fontStyle='bold'; }
+        });
+
+        // Calendario (página 2)
+        doc.addPage();
+        doc.setFontSize(16); doc.setFont('helvetica','bold'); doc.text('Calendario de Pagos (Presupuesto)',14,20);
+        const calHead=[['Fecha','Apartado','Enganche','Mensualidad','Contraentrega','Subtotal','Saldo']];
+        const calBody=calendarioPagos.map(p=>[formatDate(p.date),formatCurrency(p.apartado),formatCurrency(p.enganche),formatCurrency(p.mensualidad),formatCurrency(p.contraentrega),formatCurrency(p.subtotal),formatCurrency(p.saldo)]);
+        calBody.push(['Total',formatCurrency(globalTotals.apartado||0),formatCurrency(globalTotals.enganche||0),formatCurrency(globalTotals.mensualidad||0),formatCurrency(globalTotals.contraentrega||0),formatCurrency(globalTotals.pagado||0),'-']);
+        doc.autoTable({
+          startY:28,
+          head:calHead,
+          body:calBody,
+          theme:'grid',
+          styles:{fontSize:9,lineColor:[0,0,0],lineWidth:0.1},
+          headStyles:{fillColor:[85,107,47],textColor:[255,255,255],fontStyle:'bold'},
+          didParseCell:(data)=>{ if(data.row.index===calBody.length-1){ data.cell.styles.fontStyle='bold'; data.cell.styles.fillColor=[230,230,230]; data.cell.styles.textColor=[0,0,0]; } }
+        });
+
+        doc.setFontSize(8); doc.setFont('helvetica','italic');
+        doc.text('Cotización informativa, sujeta a disponibilidad y cambios sin previo aviso.',14, doc.lastAutoTable.finalY+15, {maxWidth:180});
+
+        doc.save(`Cotizacion_${loteSeleccionado.nombre.replace(/\s/g,'_')}_${(inputCliente.value||'N/A').replace(/\s/g,'_')}.pdf`);
+      }
+
+      // ---- Eventos ----
+      inputLogo.addEventListener('change', (e)=>{
+        const file=e.target.files[0];
+        if(!file){ logoImgData=null; logoPreview.classList.add('hidden'); return; }
+        const reader=new FileReader();
+        reader.onload=(ev)=>{ logoImgData=ev.target.result; logoPreview.src=logoImgData; logoPreview.classList.remove('hidden'); };
+        reader.onerror=()=>{ logoImgData=null; logoPreview.classList.add('hidden'); };
+        reader.readAsDataURL(file);
+      });
+
+      selectLote.addEventListener('change', handleLoteSelection);
+
+      [inputApartado,selectDescuentoTipo,inputDescuentoValor,inputDiferirEnganche,inputInicioFecha,selectPlazo,inputPlazoCustom,inputTasaCustom]
+        .forEach(el=> el.addEventListener('input', updateCalculations));
+
+      inputEnganchePct.addEventListener('input',()=>normalizePercentages('e'));
+      inputFinanciadoPct.addEventListener('input',()=>normalizePercentages('f'));
+      inputContraentregaPct.addEventListener('input',()=>normalizePercentages('c'));
+
+      selectPlazo.addEventListener('change',()=>{
+        const isCustom = selectPlazo.value==='custom';
+        divCustomPlazo.classList.toggle('hidden', !isCustom);
+        updateCalculations();
+      });
+
+      document.getElementById('btn-pdf').addEventListener('click', exportPDF);
+      btnReinit.addEventListener('click', initializeLotes);
+
+      // ---- Inicialización ----
+      const hoy=new Date();
+      const two=n=>String(n).padStart(2,'0');
+      infoFecha.value = `${two(hoy.getDate())}/${two(hoy.getMonth()+1)}/${hoy.getFullYear()}`;
+      const primerDiaProximoMes = new Date(hoy.getFullYear(), hoy.getMonth()+1, 1);
+      document.getElementById('input-inicio-fecha').value = primerDiaProximoMes.toISOString().split('T')[0];
+
+      initializeLotes();
+      // Botón PDF depende de selección y calendario
+      (function updateBtn(){ const observer=new MutationObserver(()=>{ document.getElementById('btn-pdf').disabled = !loteSeleccionado || calendarioPagos.length===0; }); observer.observe(document.body,{childList:true,subtree:true}); })();
+    });
+  </script>
+</body>
+</html>
